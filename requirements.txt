@@ -1,7 +1,7 @@
 Flask
 gunicorn
 numpy
-tensorflow==2.13.0
+Tensorflow
 joblib
 click
 itsdangerous
