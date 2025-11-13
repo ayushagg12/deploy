@@ -2,20 +2,26 @@ from flask import Flask, request, jsonify
 import numpy as np
 import tensorflow as tf
 import joblib
+import os
 
 app = Flask(__name__)
 
 # ==========================================================
 # 1. Load Files (Model + Features + Scaler)
 # ==========================================================
-MODEL_PATH = "bilstm_malware_model.h5"
-FEATURES_PATH = "feature_names.pkl"
-SCALER_PATH = "scaler.pkl"
+MODEL_PATH = "model/bilstm_malware_model.keras"   # UPDATED
+FEATURES_PATH = "model/feature_names.pkl"
+SCALER_PATH = "model/scaler.pkl"
 
 print("📌 Loading model, feature names, and scaler...")
 
+# Load model
 model = tf.keras.models.load_model(MODEL_PATH)
-feature_names = joblib.load(FEATURES_PATH)   # list of 639 features
+
+# Load feature list (list of 639 feature names)
+feature_names = joblib.load(FEATURES_PATH)
+
+# Load StandardScaler
 scaler = joblib.load(SCALER_PATH)
 
 FEATURE_COUNT = len(feature_names)
@@ -24,16 +30,15 @@ print(f"✅ Loaded model!")
 print(f"✅ Loaded {FEATURE_COUNT} feature names!")
 print(f"✅ Loaded scaler!")
 
-
 # ==========================================================
 # 2. Prediction Function
 # ==========================================================
 def malware_prediction(features_list):
     try:
-        # Convert to numpy array
+        # Convert input to numpy array
         features = np.array(features_list, dtype=np.float32)
 
-        # Validate number of features
+        # Validate feature length
         if len(features) != FEATURE_COUNT:
             return {"error": f"Expected {FEATURE_COUNT} features, got {len(features)}."}
 
@@ -41,10 +46,10 @@ def malware_prediction(features_list):
         if not np.isin(features, [0, 1]).all():
             return {"error": "Feature values must be only 0 or 1 (binary)."}
 
-        # Apply StandardScaler
-        features_scaled = scaler.transform([features])   # shape: (1,639)
+        # Scale input (must match training scaler)
+        features_scaled = scaler.transform([features])  # shape: (1, 639)
 
-        # Reshape for LSTM: (batch=1, timestep=1, features=FEATURE_COUNT)
+        # Reshape for LSTM input
         features_lstm = features_scaled.reshape(1, 1, FEATURE_COUNT)
 
         # Predict
@@ -54,8 +59,8 @@ def malware_prediction(features_list):
         label = "Benign" if prediction == 1 else "Malware"
 
         return {
-            "prediction": prediction,     # 0 or 1
-            "label": label,               # "Malware" or "Benign"
+            "prediction": prediction,
+            "label": label,
             "probability": float(round(prob, 4)),
             "explanation": "0 = Malware, 1 = Benign"
         }
@@ -67,7 +72,7 @@ def malware_prediction(features_list):
 # ==========================================================
 # 3. API Routes
 # ==========================================================
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return jsonify({"message": "🔥 Malware Detection API (Flask + TensorFlow) Running Successfully!"})
 
@@ -94,7 +99,7 @@ def predict():
 
 
 # ==========================================================
-# 4. Run Flask App (local)
+# 4. Run Flask App Locally
 # ==========================================================
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
