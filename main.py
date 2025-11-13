@@ -9,9 +9,9 @@ app = Flask(__name__)
 # ==========================================================
 # 1. Load Files (Model + Features + Scaler)
 # ==========================================================
-MODEL_PATH = "model/bilstm_malware_model.keras"   # UPDATED
-FEATURES_PATH = "model/feature_names.pkl"
-SCALER_PATH = "model/scaler.pkl"
+MODEL_PATH = "bilstm_malware_model.keras"   # UPDATED
+FEATURES_PATH = "feature_names.pkl"
+SCALER_PATH = "scaler.pkl"
 
 print("📌 Loading model, feature names, and scaler...")
 
