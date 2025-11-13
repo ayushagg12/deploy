@@ -6,46 +6,56 @@ import joblib
 app = Flask(__name__)
 
 # ==========================================================
-# 1. Load TensorFlow Model and Feature Files
+# 1. Load Files (Model + Features + Scaler)
 # ==========================================================
-MODEL_PATH = "model.h5"
-FEATURES_PATH = "features.pkl"
+MODEL_PATH = "model/model.h5"
+FEATURES_PATH = "model/feature_names.pkl"
+SCALER_PATH = "model/scaler.pkl"
 
-print("📌 Loading model and feature list...")
-model = tf.keras.models.load_model(MODEL_PATH)     # Load model.h5
-feature_list = joblib.load(FEATURES_PATH)          # Load features.pkl (list of 639 feature names)
-feature_count = len(feature_list)
+print("📌 Loading model, feature names, and scaler...")
 
-print(f"✅ Model Loaded!")
-print(f"✅ Total Features Expected: {feature_count}")
+model = tf.keras.models.load_model(MODEL_PATH)
+feature_names = joblib.load(FEATURES_PATH)   # list of 639 features
+scaler = joblib.load(SCALER_PATH)
+
+FEATURE_COUNT = len(feature_names)
+
+print(f"✅ Loaded model!")
+print(f"✅ Loaded {FEATURE_COUNT} feature names!")
+print(f"✅ Loaded scaler!")
 
 
 # ==========================================================
 # 2. Prediction Function
 # ==========================================================
-def malware_prediction(features):
+def malware_prediction(features_list):
     try:
         # Convert to numpy array
-        features = np.array(features, dtype=np.float32)
+        features = np.array(features_list, dtype=np.float32)
 
-        # VALIDATIONS
-        if len(features) != feature_count:
-            return {"error": f"Feature vector must have {feature_count} elements, got {len(features)}."}
+        # Validate number of features
+        if len(features) != FEATURE_COUNT:
+            return {"error": f"Expected {FEATURE_COUNT} features, got {len(features)}."}
 
+        # Validate binary input
         if not np.isin(features, [0, 1]).all():
-            return {"error": "All feature values must be 0 or 1 (binary only)."}
+            return {"error": "Feature values must be only 0 or 1 (binary)."}
 
-        # Reshape for LSTM: (batch=1, timesteps=1, features=N)
-        features_lstm = features.reshape(1, 1, feature_count)
+        # Apply StandardScaler
+        features_scaled = scaler.transform([features])   # shape: (1,639)
+
+        # Reshape for LSTM: (batch=1, timestep=1, features=FEATURE_COUNT)
+        features_lstm = features_scaled.reshape(1, 1, FEATURE_COUNT)
 
         # Predict
         prob = model.predict(features_lstm, verbose=0)[0][0]
         prediction = int(prob > 0.5)
+
         label = "Benign" if prediction == 1 else "Malware"
 
         return {
-            "prediction": prediction,
-            "label": label,
+            "prediction": prediction,     # 0 or 1
+            "label": label,               # "Malware" or "Benign"
             "probability": float(round(prob, 4)),
             "explanation": "0 = Malware, 1 = Benign"
         }
@@ -55,11 +65,11 @@ def malware_prediction(features):
 
 
 # ==========================================================
-# 3. API Endpoints
+# 3. API Routes
 # ==========================================================
 @app.route("/")
 def home():
-    return jsonify({"message": "✅ Malware Detection API (Flask + TensorFlow) Running Successfully!"})
+    return jsonify({"message": "🔥 Malware Detection API (Flask + TensorFlow) Running Successfully!"})
 
 
 @app.route("/predict", methods=["POST"])
@@ -68,9 +78,10 @@ def predict():
         data = request.get_json(force=True)
 
         if "features" not in data:
-            return jsonify({"error": "Missing 'features' in request JSON."}), 400
+            return jsonify({"error": "JSON must include 'features' field"}), 400
 
         features = data["features"]
+
         result = malware_prediction(features)
 
         if "error" in result:
@@ -83,7 +94,7 @@ def predict():
 
 
 # ==========================================================
-# 4. Run Flask App (LOCAL)
+# 4. Run Flask App (local)
 # ==========================================================
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
